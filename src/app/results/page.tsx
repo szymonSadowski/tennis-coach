@@ -42,30 +42,45 @@ function ResultsContent() {
       try {
         // Get the stored result from sessionStorage
         const storedResultString = sessionStorage.getItem(resultId);
-        if (storedResultString) {
-          const storedResult = JSON.parse(storedResultString);
-          console.log("Retrieved result from sessionStorage:", storedResult);
+        console.log("Raw stored result string:", storedResultString);
 
-          // Extract the actual analysis data
-          const analysisResult = storedResult.data;
-          setResult(analysisResult);
+        if (storedResultString && storedResultString.trim()) {
+          try {
+            const storedResult = JSON.parse(storedResultString);
+            console.log("Retrieved result from sessionStorage:", storedResult);
 
-          // Retrieve video from IndexedDB
-          if (analysisResult.data?.videoId) {
-            const videoId = analysisResult.data.videoId;
-            
-            createVideoUrl(videoId)
-              .then((videoUrl) => {
-                if (videoUrl) {
-                  setVideoUrl(videoUrl);
-                  console.log("Video URL created from IndexedDB:", videoUrl);
-                } else {
-                  console.log("No video found in IndexedDB for ID:", videoId);
-                }
-              })
-              .catch((error) => {
-                console.error("Failed to retrieve video from IndexedDB:", error);
-              });
+            // Extract the actual analysis data
+            const analysisResult = storedResult.data;
+            setResult(analysisResult);
+
+            // Retrieve video from IndexedDB
+            if (analysisResult.data?.videoId) {
+              const videoId = analysisResult.data.videoId;
+
+              createVideoUrl(videoId)
+                .then((videoUrl) => {
+                  if (videoUrl) {
+                    setVideoUrl(videoUrl);
+                    console.log("Video URL created from IndexedDB:", videoUrl);
+                  } else {
+                    console.log("No video found in IndexedDB for ID:", videoId);
+                  }
+                })
+                .catch((error) => {
+                  console.error(
+                    "Failed to retrieve video from IndexedDB:",
+                    error
+                  );
+                });
+            }
+          } catch (parseError) {
+            console.error(
+              "Failed to parse JSON from sessionStorage:",
+              parseError
+            );
+            setError(
+              "Failed to parse analysis results. The data may be corrupted."
+            );
           }
         } else {
           console.error("No result found in sessionStorage for ID:", resultId);
