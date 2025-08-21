@@ -12,6 +12,7 @@ import {
   isTennisAnalysis,
   hasError,
 } from "@/lib/schemas";
+import { createVideoUrl } from "@/lib/indexeddb";
 
 interface AnalysisResult {
   success: boolean;
@@ -49,41 +50,22 @@ function ResultsContent() {
           const analysisResult = storedResult.data;
           setResult(analysisResult);
 
-          // Retrieve video from sessionStorage or global fallback
+          // Retrieve video from IndexedDB
           if (analysisResult.data?.videoId) {
             const videoId = analysisResult.data.videoId;
-            let storedVideo = sessionStorage.getItem(videoId);
-            let storedType = sessionStorage.getItem(`${videoId}_type`);
-
-            // Try global fallback if sessionStorage is empty
-            if (
-              !storedVideo &&
-              typeof window !== "undefined" &&
-              (window as any)._tennisVideoData?.[videoId]
-            ) {
-              const globalData = (window as any)._tennisVideoData[videoId];
-              storedVideo = globalData.data;
-              storedType = globalData.type;
-              console.log("Retrieved video from global fallback");
-            }
-
-            if (storedVideo && storedType) {
-              // Convert base64 back to blob and create URL
-              fetch(storedVideo)
-                .then((res) => res.blob())
-                .then((blob) => {
-                  const url = URL.createObjectURL(
-                    new Blob([blob], { type: storedType })
-                  );
-                  setVideoUrl(url);
-                  console.log("Video URL created:", url);
-                })
-                .catch((err) => {
-                  console.error("Failed to create video URL:", err);
-                });
-            } else {
-              console.log("No stored video found for ID:", videoId);
-            }
+            
+            createVideoUrl(videoId)
+              .then((videoUrl) => {
+                if (videoUrl) {
+                  setVideoUrl(videoUrl);
+                  console.log("Video URL created from IndexedDB:", videoUrl);
+                } else {
+                  console.log("No video found in IndexedDB for ID:", videoId);
+                }
+              })
+              .catch((error) => {
+                console.error("Failed to retrieve video from IndexedDB:", error);
+              });
           }
         } else {
           console.error("No result found in sessionStorage for ID:", resultId);

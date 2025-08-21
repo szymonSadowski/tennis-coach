@@ -13,6 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { BarChart } from "lucide-react";
+import { storeVideo, cleanupOldVideos } from "@/lib/indexeddb";
 
 const tennisPlayers = [
   "Rafael Nadal",
@@ -42,6 +43,9 @@ export default function Home() {
       setApiKey(savedApiKey);
       setIsApiKeySaved(true);
     }
+    
+    // Cleanup old videos from IndexedDB on app start
+    cleanupOldVideos().catch(console.error);
   }, []);
 
   const handleApiKeySave = () => {
@@ -110,63 +114,24 @@ export default function Home() {
         });
 
         try {
-          // Step 2: Convert video to base64 (30% progress)
-          setAnalysisProgress(30);
-
-          const videoData = await new Promise<string>((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () => resolve(reader.result as string);
-            reader.onerror = reject;
-            reader.readAsDataURL(videoFile);
-          });
-
           videoId = `video_${Date.now()}`;
 
-          // Step 3: Store video data (50% progress)
+          // Step 3: Store video data in IndexedDB (50% progress)
           setAnalysisProgress(50);
 
           try {
-            sessionStorage.setItem(videoId, videoData);
-            sessionStorage.setItem(`${videoId}_type`, videoFile.type);
-            sessionStorage.setItem(`${videoId}_name`, videoFile.name);
-            sessionStorage.setItem(
-              `${videoId}_size`,
-              videoFile.size.toString()
+            await storeVideo(videoId, videoFile);
+            console.log(
+              "Video stored successfully in IndexedDB with ID:",
+              videoId,
+              "- Storage verification: PASSED"
             );
-
-            const testRetrieval = sessionStorage.getItem(videoId);
-            if (testRetrieval) {
-              console.log(
-                "Video stored successfully with ID:",
-                videoId,
-                "- Storage verification: PASSED"
-              );
-            } else {
-              console.error(
-                "Video storage FAILED - sessionStorage.getItem returned null"
-              );
-              throw new Error("SessionStorage failed to store video");
-            }
           } catch (storageError) {
-            console.warn(
-              "SessionStorage full, trying alternative approach:",
-              storageError
-            );
-
-            if (typeof window !== "undefined") {
-              (window as any)._tennisVideoData = {
-                [videoId]: {
-                  data: videoData,
-                  type: videoFile.type,
-                  name: videoFile.name,
-                  size: videoFile.size,
-                },
-              };
-              console.log("Video stored in global variable as fallback");
-            }
+            console.error("IndexedDB storage failed:", storageError);
+            throw new Error("Failed to store video in IndexedDB");
           }
         } catch (fileReadError) {
-          console.error("Failed to read video file:", fileReadError);
+          console.error("Failed to process video file:", fileReadError);
         }
       }
 
