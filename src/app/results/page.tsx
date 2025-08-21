@@ -1,7 +1,7 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { Button } from "@/components/ui/button";
 import TennisVideoPlayerWithOverlay from "@/components/tennis-video-player-with-overlay";
 import Link from "next/link";
@@ -26,7 +26,7 @@ interface AnalysisResult {
   error?: string;
 }
 
-export default function ResultsPage() {
+function ResultsContent() {
   const searchParams = useSearchParams();
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [loading, setLoading] = useState(true);
@@ -441,5 +441,36 @@ export default function ResultsPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+function LoadingFallback() {
+  return (
+    <div className="min-h-screen flex items-center justify-center relative">
+      {/* Tennis Court Background Lines */}
+      <div className="fixed inset-0 pointer-events-none opacity-15">
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className="relative w-full max-w-6xl h-full max-h-[800px]">
+            <div className="absolute inset-4 border-2 border-tennis-yellow/40 rounded-sm"></div>
+            <div className="absolute top-1/2 left-4 right-4 h-0 border-t-2 border-tennis-yellow/40 transform -translate-y-1/2"></div>
+            <div className="absolute top-4 bottom-4 left-1/2 w-0 border-l-2 border-tennis-yellow/40 transform -translate-x-1/2"></div>
+          </div>
+        </div>
+      </div>
+      <div className="text-center relative z-10">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-us-open-navy mx-auto"></div>
+        <p className="mt-4 text-us-open-navy font-medium">
+          Loading tennis analysis results...
+        </p>
+      </div>
+    </div>
+  );
+}
+
+export default function ResultsPage() {
+  return (
+    <Suspense fallback={<LoadingFallback />}>
+      <ResultsContent />
+    </Suspense>
   );
 }
