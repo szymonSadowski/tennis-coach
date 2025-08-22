@@ -28,7 +28,7 @@ const tennisPlayers = [
 
 export default function Home() {
   const router = useRouter();
-  const { createVideoUrl } = useVideo();
+  const { createVideoUrl, setAnalysisResult } = useVideo();
   const [apiKey, setApiKey] = useState("");
   const [selectedPlayer, setSelectedPlayer] = useState("");
   const [videoFile, setVideoFile] = useState<File | null>(null);
@@ -226,19 +226,22 @@ export default function Home() {
         }
       }
 
-      // Store analysis result in sessionStorage with unique key
+      // Store analysis result in context instead of sessionStorage
       const resultId = `tennis_result_${Date.now()}`;
-      const sessionResult = {
+      const analysisResultData = {
         id: resultId,
         data: result || {},
         createdAt: new Date().toISOString(),
+        videoId: videoId || undefined, // Convert null to undefined
       };
-      sessionStorage.setItem(resultId, JSON.stringify(sessionResult));
 
-      console.log("Stored result in sessionStorage with ID:", resultId);
-      console.log("Stored result data:", sessionResult);
+      // Store in context instead of sessionStorage
+      setAnalysisResult(analysisResultData);
 
-      // Navigate with just the result ID
+      console.log("Stored result in context with ID:", resultId);
+      console.log("Stored result data:", analysisResultData);
+
+      // Navigate with just the result ID (for URL consistency)
       router.push(`/results?id=${resultId}`);
     } catch (error) {
       console.error("Analysis error:", error);

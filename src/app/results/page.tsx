@@ -12,7 +12,7 @@ import {
   isTennisAnalysis,
   hasError,
 } from "@/lib/schemas";
-import { useVideoUrl } from "@/contexts/video-context";
+import { useVideoUrl, useAnalysisResult } from "@/contexts/video-context";
 
 interface AnalysisResult {
   success: boolean;
@@ -34,39 +34,56 @@ function ResultsContent() {
   const [error, setError] = useState<string | null>(null);
   const [videoId, setVideoId] = useState<string | null>(null);
 
-  // Get video URL from context using the video ID
+  // Get analysis result and video URL from context
+  const analysisResult = useAnalysisResult();
   const videoUrl = useVideoUrl(videoId);
 
   useEffect(() => {
     const resultId = searchParams.get("id");
     console.log("Result ID from URL:", resultId);
 
-    if (resultId) {
+    if (analysisResult) {
+      console.log("Retrieved result from context:", analysisResult);
+
+      // The context stores the raw result, extract the analysis data
+      setResult(analysisResult.data);
+
+      // Set video ID to get video URL from context
+      if (analysisResult.videoId) {
+        setVideoId(analysisResult.videoId);
+        console.log("Video ID set for context lookup:", analysisResult.videoId);
+      }
+
+      setLoading(false);
+    } else if (resultId) {
+      // Fallback to sessionStorage if context doesn't have the result
       try {
-        // Get the stored result from sessionStorage
         const storedResultString = sessionStorage.getItem(resultId);
-        console.log("Raw stored result string:", storedResultString);
+        console.log("Fallback - Raw stored result string:", storedResultString);
 
         if (storedResultString && storedResultString.trim()) {
           try {
             const storedResult = JSON.parse(storedResultString);
-            console.log("Retrieved result from sessionStorage:", storedResult);
+            console.log(
+              "Fallback - Retrieved result from sessionStorage:",
+              storedResult
+            );
 
             // Extract the actual analysis data
-            const analysisResult = storedResult.data;
-            setResult(analysisResult);
+            const sessionAnalysisResult = storedResult.data;
+            setResult(sessionAnalysisResult);
 
             // Set video ID to get video URL from context
-            if (analysisResult.data?.videoId) {
-              setVideoId(analysisResult.data.videoId);
+            if (sessionAnalysisResult.data?.videoId) {
+              setVideoId(sessionAnalysisResult.data.videoId);
               console.log(
-                "Video ID set for context lookup:",
-                analysisResult.data.videoId
+                "Fallback - Video ID set for context lookup:",
+                sessionAnalysisResult.data.videoId
               );
             }
           } catch (parseError) {
             console.error(
-              "Failed to parse JSON from sessionStorage:",
+              "Fallback - Failed to parse JSON from sessionStorage:",
               parseError
             );
             setError(
@@ -74,20 +91,24 @@ function ResultsContent() {
             );
           }
         } else {
-          console.error("No result found in sessionStorage for ID:", resultId);
+          console.error(
+            "Fallback - No result found in sessionStorage for ID:",
+            resultId
+          );
           setError(
             "Analysis results not found. Please try running the analysis again."
           );
         }
       } catch (err) {
         setError("Failed to load results from storage");
-        console.error("Storage read error:", err);
+        console.error("Fallback - Storage read error:", err);
       }
+      setLoading(false);
     } else {
       setError("No result ID provided");
+      setLoading(false);
     }
-    setLoading(false);
-  }, [searchParams]);
+  }, [searchParams, analysisResult]);
 
   // Handle manual video upload if video wasn't stored
   if (loading) {

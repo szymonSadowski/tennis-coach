@@ -38,6 +38,7 @@ Use Array<Type> instead of Type[] for better compatibility with TypeScript and t
 
 - Use lowercase with dashes for directories (e.g., components/auth-wizard).
 - Favor named exports for components.
+- components should have names in kebab case (e.g., tennis-video-player).
 
 ## TypeScript Usage
 
