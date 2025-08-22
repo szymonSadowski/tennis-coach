@@ -12,7 +12,7 @@ import {
   isTennisAnalysis,
   hasError,
 } from "@/lib/schemas";
-import { createVideoUrl } from "@/lib/indexeddb";
+import { useVideoUrl } from "@/contexts/video-context";
 
 interface AnalysisResult {
   success: boolean;
@@ -32,7 +32,10 @@ function ResultsContent() {
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [videoUrl, setVideoUrl] = useState<string>("");
+  const [videoId, setVideoId] = useState<string | null>(null);
+
+  // Get video URL from context using the video ID
+  const videoUrl = useVideoUrl(videoId);
 
   useEffect(() => {
     const resultId = searchParams.get("id");
@@ -53,25 +56,13 @@ function ResultsContent() {
             const analysisResult = storedResult.data;
             setResult(analysisResult);
 
-            // Retrieve video from IndexedDB
+            // Set video ID to get video URL from context
             if (analysisResult.data?.videoId) {
-              const videoId = analysisResult.data.videoId;
-
-              createVideoUrl(videoId)
-                .then((videoUrl) => {
-                  if (videoUrl) {
-                    setVideoUrl(videoUrl);
-                    console.log("Video URL created from IndexedDB:", videoUrl);
-                  } else {
-                    console.log("No video found in IndexedDB for ID:", videoId);
-                  }
-                })
-                .catch((error) => {
-                  console.error(
-                    "Failed to retrieve video from IndexedDB:",
-                    error
-                  );
-                });
+              setVideoId(analysisResult.data.videoId);
+              console.log(
+                "Video ID set for context lookup:",
+                analysisResult.data.videoId
+              );
             }
           } catch (parseError) {
             console.error(
@@ -97,15 +88,6 @@ function ResultsContent() {
     }
     setLoading(false);
   }, [searchParams]);
-
-  // Clean up video URL when component unmounts
-  useEffect(() => {
-    return () => {
-      if (videoUrl) {
-        URL.revokeObjectURL(videoUrl);
-      }
-    };
-  }, [videoUrl]);
 
   // Handle manual video upload if video wasn't stored
   if (loading) {

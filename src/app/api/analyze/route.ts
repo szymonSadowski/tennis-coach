@@ -1,4 +1,4 @@
-import { generateObject, generateText } from "ai";
+import { generateObject } from "ai";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { NextRequest, NextResponse } from "next/server";
 import { createServeOnlyPrompt, createGameplayPrompt } from "@/lib/prompts";

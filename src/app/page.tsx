@@ -13,7 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { BarChart } from "lucide-react";
-import { storeVideo, cleanupOldVideos } from "@/lib/indexeddb";
+import { useVideo } from "@/contexts/video-context";
 
 const tennisPlayers = [
   "Rafael Nadal",
@@ -28,6 +28,7 @@ const tennisPlayers = [
 
 export default function Home() {
   const router = useRouter();
+  const { createVideoUrl } = useVideo();
   const [apiKey, setApiKey] = useState("");
   const [selectedPlayer, setSelectedPlayer] = useState("");
   const [videoFile, setVideoFile] = useState<File | null>(null);
@@ -43,9 +44,6 @@ export default function Home() {
       setApiKey(savedApiKey);
       setIsApiKeySaved(true);
     }
-    
-    // Cleanup old videos from IndexedDB on app start
-    cleanupOldVideos().catch(console.error);
   }, []);
 
   const handleApiKeySave = () => {
@@ -116,22 +114,23 @@ export default function Home() {
         try {
           videoId = `video_${Date.now()}`;
 
-          // Step 3: Store video data in IndexedDB (50% progress)
+          // Step 3: Store video data in Context (50% progress)
           setAnalysisProgress(50);
 
           try {
-            await storeVideo(videoId, videoFile);
+            const videoUrl = createVideoUrl(videoFile, videoId);
             console.log(
-              "Video stored successfully in IndexedDB with ID:",
+              "Video stored successfully in Context with ID:",
               videoId,
-              "- Storage verification: PASSED"
+              "URL:",
+              videoUrl
             );
           } catch (storageError) {
-            console.error("IndexedDB storage failed:", storageError);
-            throw new Error("Failed to store video in IndexedDB");
+            console.error("Video Context storage failed:", storageError);
+            throw new Error("Failed to store video in Context");
           }
-        } catch (fileReadError) {
-          console.error("Failed to process video file:", fileReadError);
+        } catch (fileProcessError) {
+          console.error("Failed to process video file:", fileProcessError);
         }
       }
 
