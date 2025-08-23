@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
       analysisType === "serve-only" ? serveOnlySchema : gameplaySchema;
 
     const { object } = await generateObject({
-      model: google("models/gemini-1.5-flash"), // Fixed model name
+      model: google("models/gemini-2.5-flash-lite"), // Fixed model name
       schema: schema,
       messages: [
         {
