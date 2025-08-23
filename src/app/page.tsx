@@ -14,6 +14,9 @@ import {
 } from "@/components/ui/select";
 import { BarChart } from "lucide-react";
 import { useVideo } from "@/contexts/video-context";
+import { useMutation } from "convex/react";
+import { api } from "../../convex/_generated/api";
+import { useUser } from "@clerk/nextjs";
 
 const tennisPlayers = [
   "Rafael Nadal",
@@ -29,6 +32,13 @@ const tennisPlayers = [
 export default function Home() {
   const router = useRouter();
   const { createVideoUrl, setAnalysisResult } = useVideo();
+  const { user } = useUser();
+
+  // Convex mutations
+  const generateUploadUrl = useMutation(api.files.generateUploadUrl);
+  const saveFile = useMutation(api.files.saveFile);
+  const saveFeedback = useMutation(api.feedbacks.saveFeedback);
+
   const [apiKey, setApiKey] = useState("");
   const [selectedPlayer, setSelectedPlayer] = useState("");
   const [videoFile, setVideoFile] = useState<File | null>(null);
@@ -100,164 +110,198 @@ export default function Home() {
     try {
       let result;
       let videoId: string | null = null;
+      let fileUrl: string | null = null;
+      let fileRecord: any = null;
 
-      // Step 1: Store video file (10% progress)
-      setAnalysisProgress(10);
+      // Step 1: Upload video to Convex storage (20% progress)
+      setAnalysisProgress(20);
+      console.log("Uploading video to Convex storage...");
 
-      if (videoFile) {
-        console.log("Storing video:", {
-          name: videoFile.name,
-          size: videoFile.size,
-          type: videoFile.type,
+      // Get upload URL from Convex
+      const postUrl = await generateUploadUrl();
+
+      // Upload file to Convex storage
+      const uploadResult = await fetch(postUrl, {
+        method: "POST",
+        headers: { "Content-Type": videoFile.type },
+        body: videoFile,
+      });
+
+      if (!uploadResult.ok) {
+        throw new Error(
+          `Upload failed: ${uploadResult.status} ${uploadResult.statusText}`
+        );
+      }
+
+      const { storageId } = await uploadResult.json();
+
+      if (user) {
+        // Step 2: Save file record to database for logged-in users (40% progress)
+        setAnalysisProgress(40);
+        console.log("Saving file record to database...");
+
+        fileRecord = await saveFile({
+          storageId,
+          userId: user.id,
+          fileName: videoFile.name,
         });
+
+        fileUrl = fileRecord.fileUrl;
+      } else {
+        // For unsigned users, save file record without userId (temporary)
+        setAnalysisProgress(40);
+        console.log("Creating temporary file record for unsigned user...");
 
         try {
-          videoId = `video_${Date.now()}`;
-
-          // Step 3: Store video data in Context (50% progress)
-          setAnalysisProgress(50);
-
-          try {
-            const videoUrl = createVideoUrl(videoFile, videoId);
-            console.log(
-              "Video stored successfully in Context with ID:",
-              videoId,
-              "URL:",
-              videoUrl
-            );
-          } catch (storageError) {
-            console.error("Video Context storage failed:", storageError);
-            throw new Error("Failed to store video in Context");
-          }
-        } catch (fileProcessError) {
-          console.error("Failed to process video file:", fileProcessError);
+          fileRecord = await saveFile({
+            storageId,
+            userId: undefined, // No user ID for unsigned users
+            fileName: videoFile.name,
+          });
+          fileUrl = fileRecord.fileUrl;
+        } catch (urlError) {
+          console.error("Failed to get file URL for unsigned user:", urlError);
+          throw new Error("Failed to get video URL for analysis");
         }
       }
 
-      console.log("About to analyze - videoId:", videoId);
+      videoId = `video_${Date.now()}`;
 
-      if (videoFile) {
-        // Step 4: Call API for analysis data (70% progress)
-        setAnalysisProgress(70);
+      console.log("File uploaded successfully:", { storageId, fileUrl });
 
-        console.log("Calling API for tennis analysis for videoId:", videoId);
-
-        // Create FormData for API call
-        const formData = new FormData();
-        formData.append("video", videoFile);
-        formData.append("selectedPlayer", selectedPlayer);
-        formData.append("analysisType", analysisType);
-        formData.append("apiKey", apiKey);
-
-        // Step 5: Make API request (80% progress)
-        setAnalysisProgress(80);
-
-        const response = await fetch("/api/analyze", {
-          method: "POST",
-          body: formData,
-        });
-
-        // Step 6: Process API response (90% progress)
-        setAnalysisProgress(90);
-
-        if (!response.ok) {
-          // Handle specific error responses
-          if (response.status === 413) {
-            const errorData = await response.json();
-            throw new Error(
-              errorData.details ||
-                `File size too large. Please use a video file smaller than ${
-                  errorData.maxSizeMB || 200
-                }MB.`
-            );
-          }
-          throw new Error(
-            `API request failed: ${response.status} ${response.statusText}`
-          );
-        }
-
-        const apiResult = await response.json();
-
-        if (!apiResult.success) {
-          // Handle API-level errors with more detail
-          const errorMessage =
-            apiResult.details ||
-            apiResult.error ||
-            "API returned unsuccessful result";
-          throw new Error(errorMessage);
-        }
-
-        // Create result in expected format for results page
-        result = {
-          success: true,
-          data: {
-            ...apiResult.data,
-            videoId: videoId,
-          },
-          metadata: {
-            ...apiResult.metadata,
-            analysisMethod: "ai-api",
-          },
-        };
-
-        // Complete (100% progress)
-        setAnalysisProgress(100);
+      // Step 3: Store video in context for playback (60% progress)
+      setAnalysisProgress(60);
+      try {
+        const videoUrl = createVideoUrl(videoFile, videoId);
+      } catch (storageError) {
+        console.error("Video Context storage failed:", storageError);
+        throw new Error("Failed to store video in Context");
       }
+
+      // Step 4: Call analysis API (80% progress)
+      setAnalysisProgress(80);
+
+      // Validate that we have a file URL before proceeding
+      if (!fileUrl) {
+        throw new Error("Failed to get video URL for analysis");
+      }
+
+      const apiResponse = await fetch("/api/analyze", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          videoUrl: fileUrl, // Use Convex file URL for both signed and unsigned users
+          selectedPlayer,
+          analysisType,
+          apiKey,
+        }),
+      });
+
+      if (!apiResponse.ok) {
+        const errorText = await apiResponse.text();
+        throw new Error(`API Error: ${errorText}`);
+      }
+
+      const analysisData = await apiResponse.json();
+
+      // Create result in expected format
+      result = {
+        success: true,
+        data: {
+          ...analysisData.data,
+          videoId: videoId,
+        },
+        metadata: {
+          ...analysisData.metadata,
+          player: selectedPlayer,
+          analysisType,
+          videoFile: videoFile.name,
+          timestamp: new Date().toISOString(),
+          analysisMethod: user ? "convex-storage-api" : "context-only-api",
+          fileUrl: fileUrl || undefined,
+        },
+      };
+
+      // Step 5: Save feedback to database if user is logged in (90% progress)
+      setAnalysisProgress(90);
+      let feedbackId: string | null = null;
+
+      if (user && fileUrl && fileRecord) {
+        try {
+          feedbackId = await saveFeedback({
+            userId: user.id,
+            fileId: fileRecord.fileId,
+            videoUrl: fileUrl,
+            selectedPlayer,
+            analysisType: analysisType as "serve-only" | "full-gameplay",
+            feedback: analysisData.data,
+          });
+        } catch (saveError) {
+          console.error("Failed to save feedback to database:", saveError);
+          // Continue without throwing error - user can still see results from context
+        }
+      }
+
+      // Complete (100% progress)
+      setAnalysisProgress(100);
 
       // Brief delay to show 100% completion
-      await new Promise((resolve) => setTimeout(resolve, 800));
+      await new Promise((resolve) => setTimeout(resolve, 500));
 
-      // Navigate to results page with the data
-      console.log("Final result before navigation:", result);
-
-      // Final validation - check if videoId made it into the result
-      if (videoId && result) {
-        if (result.data?.videoId) {
-          console.log(
-            "✅ SUCCESS: videoId properly included in result:",
-            result.data.videoId
-          );
-        } else {
-          console.error(
-            "❌ ERROR: videoId generated but NOT found in result.data"
-          );
-          console.error("videoId variable:", videoId);
-          console.error("result.data:", result.data);
-        }
-      }
-
-      // Store analysis result in context instead of sessionStorage
+      // Store analysis result in context (as fallback)
       const resultId = `tennis_result_${Date.now()}`;
       const analysisResultData = {
         id: resultId,
         data: result || {},
         createdAt: new Date().toISOString(),
-        videoId: videoId || undefined, // Convert null to undefined
+        videoId: videoId || undefined,
+        feedbackId: feedbackId || undefined,
       };
 
-      // Store in context instead of sessionStorage
       setAnalysisResult(analysisResultData);
 
-      console.log("Stored result in context with ID:", resultId);
-      console.log("Stored result data:", analysisResultData);
-
-      // Navigate with just the result ID (for URL consistency)
-      router.push(`/results?id=${resultId}`);
+      // Navigate to appropriate results page
+      if (user && feedbackId) {
+        // User is logged in and feedback is saved - go to database results
+        router.push(`/user-results?feedbackId=${feedbackId}`);
+      } else {
+        // Fallback to context-based results (session storage) - for unsigned users or if save failed
+        router.push(`/results?id=${resultId}`);
+      }
     } catch (error) {
-      console.error("Analysis error:", error);
-      const errorMessage =
-        error instanceof Error
-          ? error.message
-          : "Failed to analyze video. Please try again.";
+      console.error("Analysis failed:", error);
+
+      let errorMessage = "Failed to analyze video. Please try again.";
+
+      if (error instanceof Error) {
+        if (
+          error.message.includes("API_KEY") ||
+          error.message.includes("Invalid API key")
+        ) {
+          errorMessage =
+            "Invalid API key. Please check your Gemini API key and try again.";
+        } else if (error.message.includes("QUOTA")) {
+          errorMessage =
+            "API quota exceeded. Please check your Gemini API usage limits.";
+        } else if (error.message.includes("SAFETY")) {
+          errorMessage =
+            "Content was blocked by safety filters. Please try with a different video.";
+        } else {
+          errorMessage = error.message;
+        }
+      }
+
       alert(errorMessage);
-      setAnalysisProgress(0); // Reset progress on error
+      setAnalysisProgress(0);
     } finally {
       setIsAnalyzing(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-8 relative">
+    <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center p-8 relative">
       {/* Background elements */}
 
       <div className="us-open-card w-full max-w-2xl p-8 rounded-lg space-y-8 relative z-10">
@@ -342,6 +386,16 @@ export default function Home() {
               <br />
               • Format: MP4 video files only
               <br />• Maximum size: 200MB
+              <br />• Processing time: 2-5 minutes depending on video length
+              {!user && (
+                <>
+                  <br />
+                  <br />
+                  <span className="font-medium text-us-open-light-blue">
+                    💡 Note: Sign in to save your analyses to history
+                  </span>
+                </>
+              )}
             </p>
           </div>
 
@@ -443,14 +497,18 @@ export default function Home() {
                   {analysisProgress < 15
                     ? "Preparing Video..."
                     : analysisProgress < 35
-                    ? "Converting Video..."
-                    : analysisProgress < 55
-                    ? "Storing Video Data..."
-                    : analysisProgress < 75
-                    ? "AI Analyzing Technique..."
-                    : analysisProgress < 95
-                    ? "Generating Feedback..."
-                    : "Finalizing Results..."}
+                      ? "Uploading Video..."
+                      : analysisProgress < 55
+                        ? user
+                          ? "Storing Video Data..."
+                          : "Getting Video URL..."
+                        : analysisProgress < 75
+                          ? "AI Analyzing Technique..."
+                          : analysisProgress < 95
+                            ? user
+                              ? "Saving Feedback..."
+                              : "Generating Feedback..."
+                            : "Finalizing Results..."}
                 </span>
               </>
             ) : (
@@ -478,14 +536,18 @@ export default function Home() {
                   {analysisProgress < 15
                     ? "🎾 Initializing video processing pipeline..."
                     : analysisProgress < 35
-                    ? "� Converting video to optimal format for analysis..."
-                    : analysisProgress < 55
-                    ? "💾 Securely storing video data for playback..."
-                    : analysisProgress < 75
-                    ? "🤖 AI analyzing your tennis technique and form..."
-                    : analysisProgress < 95
-                    ? "💡 Generating personalized coaching feedback..."
-                    : "✅ Analysis complete! Preparing your results..."}
+                      ? "⬆️ Uploading video to secure cloud storage..."
+                      : analysisProgress < 55
+                        ? user
+                          ? "💾 Saving video data to your account..."
+                          : "🔗 Getting temporary video access URL..."
+                        : analysisProgress < 75
+                          ? "🤖 AI analyzing your tennis technique and form..."
+                          : analysisProgress < 95
+                            ? user
+                              ? "💾 Saving personalized feedback to your history..."
+                              : "💡 Generating personalized coaching feedback..."
+                            : "✅ Analysis complete! Preparing your results..."}
                 </span>
                 <span className="text-us-open-navy font-semibold">
                   {Math.round(analysisProgress)}%

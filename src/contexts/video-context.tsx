@@ -19,6 +19,7 @@ interface AnalysisResult {
   data: any;
   createdAt: string;
   videoId?: string;
+  feedbackId?: string;
 }
 
 interface VideoContextType {
@@ -35,7 +36,8 @@ const VideoContext = createContext<VideoContextType | undefined>(undefined);
 
 export function VideoProvider({ children }: { children: ReactNode }) {
   const [videoData, setVideoDataState] = useState<VideoData | null>(null);
-  const [analysisResult, setAnalysisResultState] = useState<AnalysisResult | null>(null);
+  const [analysisResult, setAnalysisResultState] =
+    useState<AnalysisResult | null>(null);
 
   const setVideoData = (data: VideoData | null) => {
     // Clean up previous video URL if it exists

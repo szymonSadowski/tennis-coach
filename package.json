@@ -10,6 +10,9 @@
   },
   "dependencies": {
     "@ai-sdk/google": "^2.0.6",
+    "@clerk/nextjs": "^6.31.4",
+    "@clerk/types": "^4.81.0",
+    "@google/generative-ai": "^0.24.1",
     "@radix-ui/react-label": "^2.1.7",
     "@radix-ui/react-select": "^2.2.6",
     "@radix-ui/react-slot": "^1.2.3",
@@ -20,6 +23,7 @@
     "ai": "^5.0.15",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "convex": "^1.25.4",
     "lucide-react": "^0.539.0",
     "next": "15.4.6",
     "react": "19.1.0",

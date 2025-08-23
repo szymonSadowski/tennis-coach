@@ -3,15 +3,13 @@ import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { NextRequest, NextResponse } from "next/server";
 import { createServeOnlyPrompt, createGameplayPrompt } from "@/lib/prompts";
 import { serveOnlySchema, gameplaySchema } from "@/lib/schemas";
+
 export async function POST(request: NextRequest) {
   try {
-    const formData = await request.formData();
-    const videoFile = formData.get("video") as File;
-    const selectedPlayer = formData.get("selectedPlayer") as string;
-    const analysisType = formData.get("analysisType") as string;
-    const apiKey = formData.get("apiKey") as string;
+    const body = await request.json();
+    const { videoUrl, selectedPlayer, analysisType, apiKey } = body;
 
-    if (!apiKey || !selectedPlayer || !analysisType || !videoFile) {
+    if (!apiKey || !selectedPlayer || !analysisType || !videoUrl) {
       return NextResponse.json(
         {
           error: "Missing required fields",
@@ -19,28 +17,10 @@ export async function POST(request: NextRequest) {
             apiKey: !!apiKey,
             selectedPlayer: !!selectedPlayer,
             analysisType: !!analysisType,
-            videoFile: !!videoFile,
+            videoUrl: !!videoUrl,
           },
         },
         { status: 400 }
-      );
-    }
-
-    // Check file size limit (similar to ML model limits)
-    const MAX_FILE_SIZE = 200 * 1024 * 1024; // 200MB limit (conservative for Gemini API)
-    if (videoFile.size > MAX_FILE_SIZE) {
-      return NextResponse.json(
-        {
-          error: "File size too large",
-          details: `File size (${Math.round(
-            videoFile.size / 1024 / 1024
-          )}MB) exceeds the maximum allowed size of ${Math.round(
-            MAX_FILE_SIZE / 1024 / 1024
-          )}MB. Please compress your video or use a shorter clip.`,
-          maxSizeMB: Math.round(MAX_FILE_SIZE / 1024 / 1024),
-          fileSizeMB: Math.round(videoFile.size / 1024 / 1024),
-        },
-        { status: 413 } // 413 Payload Too Large
       );
     }
 
@@ -55,19 +35,12 @@ export async function POST(request: NextRequest) {
       apiKey: apiKey,
     });
 
-    // Convert video file to base64 for Gemini
-    const videoArrayBuffer = await videoFile.arrayBuffer();
-    const videoBase64 = Buffer.from(videoArrayBuffer).toString("base64");
-
-    console.log("Video base64 length:", videoBase64.length);
-    console.log("About to call generateObject...");
-
     // Select the appropriate schema based on analysis type
     const schema =
       analysisType === "serve-only" ? serveOnlySchema : gameplaySchema;
 
     const { object } = await generateObject({
-      model: google("models/gemini-2.5-flash"),
+      model: google("models/gemini-1.5-flash"), // Fixed model name
       schema: schema,
       messages: [
         {
@@ -79,34 +52,29 @@ export async function POST(request: NextRequest) {
             },
             {
               type: "file",
-              data: videoBase64,
-              mediaType: videoFile.type,
+              data: videoUrl, // Use URL directly instead of base64
+              mediaType: "video/mp4",
             },
           ],
         },
       ],
     });
 
-    console.log("=== GEMINI AI RESPONSE START ===");
-    console.log("Generated object:", object);
-    console.log("=== GEMINI AI RESPONSE END ===");
-
     // The object is already parsed and validated by Zod
     const analysisResult = object;
-
-    console.log("Analysis result:", analysisResult);
     return NextResponse.json({
       success: true,
       data: analysisResult,
       metadata: {
         player: selectedPlayer,
         analysisType: analysisType,
-        videoFile: videoFile.name,
         timestamp: new Date().toISOString(),
+        source: "convex-storage",
       },
     });
   } catch (error) {
     console.error("Analysis error:", error);
+
     return NextResponse.json(
       {
         error: "Failed to analyze video",

@@ -3,15 +3,9 @@
 import { useSearchParams } from "next/navigation";
 import { useEffect, useState, Suspense } from "react";
 import { Button } from "@/components/ui/button";
-import TennisVideoPlayerWithOverlay from "@/components/tennis-video-player-with-overlay";
+import TennisAnalysisDisplay from "@/components/tennis-analysis-display";
 import Link from "next/link";
-import {
-  TennisAnalysis,
-  AnalysisError,
-  isGameplayAnalysis,
-  isTennisAnalysis,
-  hasError,
-} from "@/lib/schemas";
+import { TennisAnalysis, AnalysisError } from "@/lib/schemas";
 import { useVideoUrl, useAnalysisResult } from "@/contexts/video-context";
 
 interface AnalysisResult {
@@ -110,10 +104,9 @@ function ResultsContent() {
     }
   }, [searchParams, analysisResult]);
 
-  // Handle manual video upload if video wasn't stored
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-us-open-navy"></div>
           <p className="mt-4 text-us-open-navy font-medium">
@@ -126,7 +119,7 @@ function ResultsContent() {
 
   if (error || !result) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-8">
+      <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center p-8">
         <div className="us-open-card w-full max-w-2xl p-8 rounded-lg text-center">
           <h1 className="text-2xl font-bold text-us-open-navy mb-4">Error</h1>
           <p className="text-us-open-navy mb-6">
@@ -141,7 +134,7 @@ function ResultsContent() {
   }
 
   return (
-    <div className="min-h-screen p-8 relative">
+    <div className="min-h-[calc(100vh-4rem)] p-8 relative">
       <div className="us-open-card w-full max-w-4xl mx-auto p-8 rounded-lg space-y-6 relative z-10">
         <div className="text-center mb-8">
           <div className="flex items-center justify-center gap-3 mb-2">
@@ -192,245 +185,16 @@ function ResultsContent() {
           )}
         </div>
 
-        {result.success ? (
-          <div className="space-y-6">
-            {/* Tennis Video Player with Analysis */}
-            <div className="bg-white/80 p-6 rounded-lg border-2 border-us-open-light-blue/30">
-              <h2 className="text-2xl font-semibold text-us-open-navy mb-4">
-                🎾 Tennis Video Analysis with AI Overlay
-              </h2>
-
-              {videoUrl ? (
-                <div className="space-y-6">
-                  <TennisVideoPlayerWithOverlay
-                    videoSrc={videoUrl}
-                    analysisData={result.data}
-                    className="w-full max-w-4xl"
-                  />
-
-                  {/* Detailed Feedback Section Below Video */}
-                  {isTennisAnalysis(result.data) && (
-                    <div className="space-y-4">
-                      {/* Serve Feedback */}
-                      {result.data.serves &&
-                        Array.isArray(result.data.serves) && (
-                          <div className="bg-gradient-to-r from-us-open-navy/5 to-us-open-light-blue/5 p-4 rounded-lg border border-us-open-light-blue/20">
-                            <h3 className="text-xl font-semibold text-us-open-navy mb-3 flex items-center">
-                              🎾 Individual Serve Analysis
-                            </h3>
-                            <div className="space-y-3 ">
-                              {result.data.serves.map(
-                                (serve: any, index: number) => (
-                                  <div
-                                    key={index}
-                                    className="bg-white/70 p-4 rounded-lg border-l-4 border-us-open-light-blue shadow-sm"
-                                  >
-                                    <div className="flex items-start justify-between mb-2">
-                                      <div className="flex items-center space-x-3">
-                                        <span className="font-semibold text-us-open-navy">
-                                          Serve {serve.serveNumber || index + 1}
-                                        </span>
-                                        <span
-                                          className={`px-2 py-1 rounded text-sm font-medium ${
-                                            serve.result === "Successful"
-                                              ? "bg-green-100 text-green-800"
-                                              : "bg-red-100 text-red-800"
-                                          }`}
-                                        >
-                                          {serve.result}
-                                        </span>
-                                        {serve.estimatedSpeed && (
-                                          <span className="bg-yellow-100 text-yellow-800 px-2 py-1 rounded text-sm font-medium">
-                                            {serve.estimatedSpeed}
-                                          </span>
-                                        )}
-                                      </div>
-                                      <span className="text-xs text-us-open-light-blue font-mono">
-                                        @ {serve.timestamp}
-                                      </span>
-                                    </div>
-                                    {serve.feedback && (
-                                      <p className="text-us-open-navy/80 italic leading-relaxed">
-                                        "{serve.feedback}"
-                                      </p>
-                                    )}
-                                  </div>
-                                )
-                              )}
-                            </div>
-                          </div>
-                        )}
-
-                      {/* Stroke Feedback - Only for gameplay analysis */}
-                      {isGameplayAnalysis(result.data) &&
-                        result.data.strokes &&
-                        Array.isArray(result.data.strokes) && (
-                          <div className="bg-gradient-to-r from-tennis-yellow/5 to-us-open-green/5 p-4 rounded-lg border border-us-open-green/20">
-                            <h3 className="text-xl font-semibold text-us-open-navy mb-3 flex items-center">
-                              🏸 Individual Stroke Analysis
-                            </h3>
-                            <div className="space-y-3">
-                              {result.data.strokes.map(
-                                (stroke: any, index: number) => (
-                                  <div
-                                    key={index}
-                                    className="bg-white/70 p-4 rounded-lg border-l-4 border-us-open-green shadow-sm"
-                                  >
-                                    <div className="flex items-start justify-between mb-2">
-                                      <div className="flex items-center space-x-3">
-                                        <span className="font-semibold text-us-open-navy">
-                                          {stroke.type || "Stroke"} {index + 1}
-                                        </span>
-                                        <span
-                                          className={`px-2 py-1 rounded text-sm font-medium ${
-                                            ["Excellent", "Good"].includes(
-                                              stroke.quality
-                                            )
-                                              ? "bg-green-100 text-green-800"
-                                              : stroke.quality === "Average"
-                                              ? "bg-yellow-100 text-yellow-800"
-                                              : "bg-red-100 text-red-800"
-                                          }`}
-                                        >
-                                          {stroke.quality}
-                                        </span>
-                                      </div>
-                                      <span className="text-xs text-us-open-light-blue font-mono">
-                                        @ {stroke.timestamp}
-                                      </span>
-                                    </div>
-                                    {stroke.feedback && (
-                                      <p className="text-us-open-navy/80 italic leading-relaxed">
-                                        "{stroke.feedback}"
-                                      </p>
-                                    )}
-                                  </div>
-                                )
-                              )}
-                            </div>
-                          </div>
-                        )}
-
-                      {/* Point Analysis - Only for gameplay analysis */}
-                      {isGameplayAnalysis(result.data) &&
-                        result.data.pointAnalysis &&
-                        Array.isArray(result.data.pointAnalysis) && (
-                          <div className="bg-gradient-to-r from-us-open-green/5 to-tennis-yellow/5 p-4 rounded-lg border border-tennis-yellow/20">
-                            <h3 className="text-xl font-semibold text-us-open-navy mb-3 flex items-center">
-                              🎯 Point Analysis
-                            </h3>
-                            <div className="space-y-3">
-                              {result.data.pointAnalysis.map(
-                                (point: any, index: number) => (
-                                  <div
-                                    key={index}
-                                    className="bg-white/70 p-4 rounded-lg border-l-4 border-tennis-yellow shadow-sm"
-                                  >
-                                    <div className="mb-2">
-                                      <span className="font-semibold text-us-open-navy">
-                                        Point {point.pointNumber || index + 1}
-                                      </span>
-                                      <span className="ml-3 text-us-open-navy/70">
-                                        {point.description}
-                                      </span>
-                                    </div>
-                                    {point.suggestedImprovement && (
-                                      <p className="text-us-open-navy/80 italic leading-relaxed">
-                                        💡 "{point.suggestedImprovement}"
-                                      </p>
-                                    )}
-                                  </div>
-                                )
-                              )}
-                            </div>
-                          </div>
-                        )}
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="text-center p-8 border-2 border-dashed border-us-open-light-blue/30 rounded-lg">
-                  <p className="text-us-open-navy mb-2">
-                    Video not available for overlay display
-                  </p>
-                  <p className="text-us-open-navy/70 text-sm">
-                    The video analysis was completed, but the video file could
-                    not be loaded for overlay display. You can view the analysis
-                    results below.
-                  </p>
-                </div>
-              )}
-            </div>
-
-            {/* Analysis Results Raw Data */}
-            {/* <div className="bg-white/80 p-6 rounded-lg border-2 border-us-open-light-blue/30">
-              <h2 className="text-2xl font-semibold text-us-open-navy mb-4">
-                Analysis Results
-              </h2>
-              <div className="bg-gray-50 p-4 rounded-md">
-                <pre className="text-sm overflow-auto max-h-96 whitespace-pre-wrap">
-                  {JSON.stringify(result.data, null, 2)}
-                </pre>
-              </div>
-            </div> */}
-
-            {/* Display formatted results if it's valid tennis analysis */}
-            {isTennisAnalysis(result.data) && (
-              <div className="space-y-4">
-                {result.data.totalServes && (
-                  <div className="bg-tennis-yellow/20 p-4 rounded-lg">
-                    <h3 className="text-lg font-semibold text-us-open-navy mb-2">
-                      Serve Summary
-                    </h3>
-                    <p>
-                      <strong>Total Serves:</strong> {result.data.totalServes}
-                    </p>
-                    <p>
-                      <strong>Faults:</strong> {result.data.faults}
-                    </p>
-                    <p>
-                      <strong>Success Rate:</strong>{" "}
-                      {(
-                        ((result.data.totalServes - result.data.faults) /
-                          result.data.totalServes) *
-                        100
-                      ).toFixed(1)}
-                      %
-                    </p>
-                  </div>
-                )}
-
-                {result.data.overallFeedback && (
-                  <div className="bg-us-open-green/10 p-4 rounded-lg border-2 border-us-open-green/30">
-                    <h3 className="text-lg font-semibold text-us-open-navy mb-2">
-                      Overall Feedback
-                    </h3>
-                    <p className="text-us-open-navy italic">
-                      "{result.data.overallFeedback}"
-                    </p>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        ) : (
-          <div className="bg-red-50 p-6 rounded-lg border-2 border-red-200">
-            <h2 className="text-xl font-semibold text-red-700 mb-2">
-              Analysis Failed
-            </h2>
-            <p className="text-red-600 mb-4">
-              {result.error || "Unknown error occurred"}
-            </p>
-            {hasError(result.data) && result.data.rawResponse && (
-              <div className="bg-white p-4 rounded border">
-                <h3 className="font-medium mb-2">Raw Response:</h3>
-                <pre className="text-sm overflow-auto max-h-48 whitespace-pre-wrap">
-                  {result.data.rawResponse}
-                </pre>
-              </div>
-            )}
-          </div>
-        )}
+        {/* Prepare analysis data for the component */}
+        <TennisAnalysisDisplay
+          analysisData={{
+            success: result.success,
+            data: result.data,
+            metadata: result.metadata,
+            error: result.error,
+            videoUrl: videoUrl || undefined,
+          }}
+        />
 
         <div className="flex justify-center pt-6">
           <Link href="/">
@@ -446,7 +210,7 @@ function ResultsContent() {
 
 function LoadingFallback() {
   return (
-    <div className="min-h-screen flex items-center justify-center relative">
+    <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center relative">
       {/* Tennis Court Background Lines */}
       <div className="fixed inset-0 pointer-events-none opacity-15">
         <div className="absolute inset-0 flex items-center justify-center">
