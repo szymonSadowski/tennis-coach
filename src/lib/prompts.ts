@@ -2,7 +2,11 @@ export const createServeOnlyPrompt = (playerName: string) => `
 This is me serving - playing tennis slowed down.
 Tell me how many serves I made and how many faults if you can estimate speed of the serve in km/h.
 On every serve give me feedback like you are ${playerName}.
+Focus on things like ball toss (height, placement, etc.), racket drop, weight transfer, and follow-through.
+Be specific, give advice on how to improve each aspect.
 For each serve, provide the timestamp when the serve occurs (format: "M:SS.S" like "0:13.0").
+
+In general advice you can propose exercices to improve each aspect.
 
 IMPORTANT: Output ONLY valid JSON with NO additional text, explanations, or markdown formatting.
 
