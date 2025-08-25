@@ -17,6 +17,7 @@ import { useVideo } from "@/contexts/video-context";
 import { useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { useUser } from "@clerk/nextjs";
+import { analyzeVideoClientSide } from "@/lib/client-analysis";
 
 const tennisPlayers = [
   "Rafael Nadal",
@@ -178,7 +179,7 @@ export default function Home() {
         throw new Error("Failed to store video in Context");
       }
 
-      // Step 4: Call analysis API (80% progress)
+      // Step 4: Call client-side analysis (80% progress)
       setAnalysisProgress(80);
 
       // Validate that we have a file URL before proceeding
@@ -186,25 +187,18 @@ export default function Home() {
         throw new Error("Failed to get video URL for analysis");
       }
 
-      const apiResponse = await fetch("/api/analyze", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
+      // Use client-side analysis instead of API route
+      const analysisData = await analyzeVideoClientSide({
+        videoUrl: fileUrl,
+        selectedPlayer,
+        analysisType: analysisType as "serve-only" | "full-gameplay",
+        apiKey,
+        onProgress: (progress) => {
+          // Map client-side progress (0-100) to our overall progress (80-100)
+          const mappedProgress = 80 + progress * 0.2;
+          setAnalysisProgress(mappedProgress);
         },
-        body: JSON.stringify({
-          videoUrl: fileUrl, // Use Convex file URL for both signed and unsigned users
-          selectedPlayer,
-          analysisType,
-          apiKey,
-        }),
       });
-
-      if (!apiResponse.ok) {
-        const errorText = await apiResponse.text();
-        throw new Error(`API Error: ${errorText}`);
-      }
-
-      const analysisData = await apiResponse.json();
 
       // Create result in expected format
       result = {

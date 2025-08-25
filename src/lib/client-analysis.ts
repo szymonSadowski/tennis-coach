@@ -1,28 +1,34 @@
+"use client";
+
 import { generateObject } from "ai";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
-import { NextRequest, NextResponse } from "next/server";
 import { createServeOnlyPrompt, createGameplayPrompt } from "@/lib/prompts";
 import { serveOnlySchema, gameplaySchema } from "@/lib/schemas";
 
-export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json();
-    const { videoUrl, selectedPlayer, analysisType, apiKey } = body;
+interface AnalysisParams {
+  videoUrl: string;
+  selectedPlayer: string;
+  analysisType: "serve-only" | "full-gameplay";
+  apiKey: string;
+  onProgress?: (progress: number) => void;
+}
 
-    if (!apiKey || !selectedPlayer || !analysisType || !videoUrl) {
-      return NextResponse.json(
-        {
-          error: "Missing required fields",
-          details: {
-            apiKey: !!apiKey,
-            selectedPlayer: !!selectedPlayer,
-            analysisType: !!analysisType,
-            videoUrl: !!videoUrl,
-          },
-        },
-        { status: 400 }
-      );
-    }
+export async function analyzeVideoClientSide({
+  videoUrl,
+  selectedPlayer,
+  analysisType,
+  apiKey,
+  onProgress,
+}: AnalysisParams) {
+  try {
+    onProgress?.(10);
+
+    // Initialize Google GenAI with the Vercel AI SDK
+    const google = createGoogleGenerativeAI({
+      apiKey: apiKey,
+    });
+
+    onProgress?.(20);
 
     // Select the appropriate prompt based on analysis type
     const prompt =
@@ -30,17 +36,17 @@ export async function POST(request: NextRequest) {
         ? createServeOnlyPrompt(selectedPlayer)
         : createGameplayPrompt(selectedPlayer);
 
-    // Generate analysis using Gemini with the user's API key
-    const google = createGoogleGenerativeAI({
-      apiKey: apiKey,
-    });
+    onProgress?.(30);
 
     // Select the appropriate schema based on analysis type
     const schema =
       analysisType === "serve-only" ? serveOnlySchema : gameplaySchema;
 
+    onProgress?.(50);
+
+    // Generate analysis using Vercel AI SDK - pass SAS URL directly
     const { object } = await generateObject({
-      model: google("models/gemini-2.5-flash-lite"), // Fixed model name
+      model: google("models/gemini-2.5-flash"),
       schema: schema,
       messages: [
         {
@@ -48,11 +54,13 @@ export async function POST(request: NextRequest) {
           content: [
             {
               type: "text",
-              text: prompt,
+              text:
+                prompt +
+                "\n\nIMPORTANT: Analyze only key moments and provide concise feedback to optimize processing.",
             },
             {
               type: "file",
-              data: videoUrl, // Use URL directly instead of base64
+              data: videoUrl, // Use SAS URL directly
               mediaType: "video/mp4",
             },
           ],
@@ -60,27 +68,25 @@ export async function POST(request: NextRequest) {
       ],
     });
 
+    onProgress?.(90);
+
     // The object is already parsed and validated by Zod
     const analysisResult = object;
-    return NextResponse.json({
+
+    onProgress?.(100);
+
+    return {
       success: true,
       data: analysisResult,
       metadata: {
         player: selectedPlayer,
         analysisType: analysisType,
         timestamp: new Date().toISOString(),
-        source: "convex-storage",
+        source: "client-side-analysis",
       },
-    });
+    };
   } catch (error) {
-    console.error("Analysis error:", error);
-
-    return NextResponse.json(
-      {
-        error: "Failed to analyze video",
-        details: error instanceof Error ? error.message : "Unknown error",
-      },
-      { status: 500 }
-    );
+    console.error("Client-side analysis error:", error);
+    throw error;
   }
 }
